@@ -1,0 +1,5 @@
+env.yaml
+__pycache__
+twitter
+*.json
+tweets/
