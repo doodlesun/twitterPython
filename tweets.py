@@ -1,8 +1,8 @@
 import requests
 import logger
 import json
-import re
 from datetime import datetime, timedelta
+import filtering
 
 baseUrl = "https://api.twitter.com/2"
 def getUserId(token, username):
@@ -21,13 +21,13 @@ def timelineOneDay(token, userId):
     return response.json()
 
 def writeTodayTweets(bearer):
-    f = open('twitterNames.json')
+    f = open('twitterNamesTest.json')
     data = json.load(f)
     collected = { 'filteredTweets': []}
     for user in data['twitterNames']:
         response = timelineOneDay(bearer, getUserId(bearer, user))
         if 'data' in response:
-            filteredTweets = filterForTokens(response['data'])
+            filteredTweets = filtering.filterForTokens(response['data'])
             tweetsPerUser = { user: [] }
             for entry in filteredTweets:
                 entry['link'] = f'https://twitter.com/{user}/status/{entry["id"]}'
@@ -36,11 +36,3 @@ def writeTodayTweets(bearer):
     f = open(f"{datetime.now().strftime('%Y-%m-%d')}.json", "w")
     f.write(json.dumps(collected, indent=4, sort_keys=False))
 
-def filterForTokens(data):
-    regex = re.compile(r'([\$|\#][A-Z0-1]{2,})')
-    filtered = []
-    for entry in data:
-        if match := regex.findall(entry['text']):
-            entry['token'] = match
-            filtered.append(entry)
-    return filtered
