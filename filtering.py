@@ -9,13 +9,19 @@ def filterForTokens(data):
     filtered = []
     for entry in data:
         if match := regex.findall(entry['text']):
-            replacedMatches = []
-            for token in match:
-                replacedMatches.append(token.replace('#', '').replace('$', ''))
-            noDuplicateList = list(dict.fromkeys(replacedMatches))
-            entry['token_prices'] = getTokenPrice(noDuplicateList)
-            filtered.append(entry)
+            extractTicker(entry, match, filtered)
+        elif 'retweet' in entry:
+            if match := regex.findall(entry['retweet']):
+                extractTicker(entry, match, filtered)
     return filtered
+
+def extractTicker(entry, match, filtered):
+        replacedMatches = []
+        for ticker in match:
+            replacedMatches.append(ticker.replace('#', '').replace('$', ''))
+        noDuplicateList = list(dict.fromkeys(replacedMatches))
+        entry['token_prices'] = getTokenPrice(noDuplicateList)
+        filtered.append(entry)
 
 def getTokenPrice(tokenArr):
     lowerTokenArr = []

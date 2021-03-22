@@ -1,6 +1,7 @@
 import requests
 import logger
 import json
+import jsonUtil
 from datetime import datetime, timedelta
 import filtering
 
@@ -15,24 +16,38 @@ def getUserId(token, username):
 def timelineOneDay(token, userId):
     headers = {'Authorization': 'Bearer ' + token }
     start_time = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    params = {'start_time': start_time, 'end_time': datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")}
+    params = {
+            'start_time': start_time,
+            'end_time': datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            'tweet.fields': 'author_id,referenced_tweets'
+            # 'expansions': 'referenced_tweets',
+    }
     response = requests.get(baseUrl + '/users/' + userId + '/tweets', headers=headers, params=params)
     logger.printError(response)
     return response.json()
 
-def writeTodayTweets(bearer):
-    f = open('twitterNamesTest.json')
-    data = json.load(f)
+def writeTodayTweets(bearer, usernames):
     collected = { 'filteredTweets': []}
-    for user in data['twitterNames']:
+    for user in usernames['twitterNames']:
         response = timelineOneDay(bearer, getUserId(bearer, user))
         if 'data' in response:
-            filteredTweets = filtering.filterForTokens(response['data'])
-            tweetsPerUser = { user: [] }
-            for entry in filteredTweets:
-                entry['link'] = f'https://twitter.com/{user}/status/{entry["id"]}'
-                tweetsPerUser[user].append(entry)
-            collected['filteredTweets'].append(tweetsPerUser)
+            for entry in response['data']:
+                if 'referenced_tweets' in entry:
+                    for reference in entry['referenced_tweets']:
+                        if reference['type'] == 'retweeted':
+                            entry['retweet'] = fetchSingleTweet(bearer, reference['id'])
+            if 'data' in response:
+                filteredTweets = filtering.filterForTokens(response['data'])
+                tweetsPerUser = { user: [] }
+                for entry in filteredTweets:
+                    entry['link'] = f'https://twitter.com/{user}/status/{entry["id"]}'
+                    tweetsPerUser[user].append(entry)
+                collected['filteredTweets'].append(tweetsPerUser)
     f = open(f"{datetime.now().strftime('%Y-%m-%d')}.json", "w")
-    f.write(json.dumps(collected, indent=4, sort_keys=False))
+    f.write(jsonUtil.toJson(collected))
+
+def fetchSingleTweet(token, tweetId):
+    headers = {'Authorization': 'Bearer ' + token }
+    response = requests.get(baseUrl + '/tweets/' + tweetId, headers=headers)
+    return jsonUtil.toJson(jsonUtil.sanitizeText(response.json()['data']['text']))
 
