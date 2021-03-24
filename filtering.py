@@ -1,11 +1,14 @@
 import re
+
 import logger
 import requests
 from datetime import datetime 
 
 coingeckoUrl = 'https://api.coingecko.com/api/v3'
+allCoins = requests.get(coingeckoUrl + '/coins/list')
+
 def filterForTokens(data):
-    regex = re.compile(r'([\$|\#][A-Z0-1]{2,})')
+    regex = re.compile(r'(?!.*[BTC]|[ETH])([\$|\#][A-Z0-1]{2,})')
     filtered = []
     for entry in data:
         if match := regex.findall(entry['text']):
@@ -27,7 +30,6 @@ def getTokenPrice(tokenArr):
     lowerTokenArr = []
     for entryToken in tokenArr:
         lowerTokenArr.append(entryToken.lower())
-    allCoins = requests.get(coingeckoUrl + '/coins/list')
     logger.printError(allCoins)
     ids = []
     tokens = {}
