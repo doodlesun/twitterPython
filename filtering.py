@@ -3,14 +3,18 @@ import re
 import logger
 import requests
 import json
-from datetime import datetime 
+from datetime import datetime, timedelta 
 
 coingeckoUrl = 'https://api.coingecko.com/api/v3'
 allCoins = requests.get(coingeckoUrl + '/coins/list')
 logger.printError(allCoins)
 
+f = open('noiseTickers.json')
+noise = json.load(f)
+
+
 def filterForTokens(data):
-    regex = re.compile(r'(?!.*[BTC]|[ETH])([\$|\#][A-Z0-1]{2,})')
+    regex = re.compile(r'([\$\#]{1}[A-Za-z0-1]{2,})')
     filtered = []
     for entry in data:
         if match := regex.findall(entry['text']):
@@ -25,18 +29,19 @@ def checkForToken(entry, filtered):
     foundTicker = []
     for ticker in allCoins.json():
         if ticker['name'] in entry['text']:
-            print(entry['text'])
             filtered.append(entry)
-            print('foundTicker', ticker)
     return foundTicker
 
 def extractTicker(entry, match, filtered):
         replacedMatches = []
         for ticker in match:
-            replacedMatches.append(ticker.replace('#', '').replace('$', ''))
-        noDuplicateList = list(dict.fromkeys(replacedMatches))
-        entry['token_prices'] = getTokenPrice(noDuplicateList)
-        filtered.append(entry)
+            rawTicker = ticker.replace('#', '').replace('$', '')
+            if rawTicker.upper() not in noise:
+                replacedMatches.append(rawTicker)
+        if len(replacedMatches) > 0:
+            noDuplicateList = list(dict.fromkeys(replacedMatches))
+            entry['token_prices'] = getTokenPrice(noDuplicateList)
+            filtered.append(entry)
 
 def getTokenPrice(tokenArr):
     lowerTokenArr = []
@@ -55,12 +60,23 @@ def getTokenPrice(tokenArr):
         logger.printError(price)
         response = price.json()
         for symbol, tokenId in tokens.items():
+            currentPrice = response[tokenId]['usd']
             returnValue[symbol] = {}
-            returnValue[symbol]['usd'] = response[tokenId]['usd']
+            returnValue[symbol]['seven_delta'] = extractSevenDayDelta(tokenId, currentPrice)
+            returnValue[symbol]['usd'] = currentPrice
             returnValue[symbol]['time'] = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
     for coin in lowerTokenArr:
         upperCoin = f'${coin.upper()}' 
         if upperCoin not in list(dict.fromkeys(returnValue)):
             returnValue[upperCoin] = {'usd': 'no_price'}
     return returnValue;
+
+def extractSevenDayDelta(tokenId, currentPrice):
+    sevenDays = (datetime.now() - timedelta(weeks=1)).strftime('%d-%m-%Y')
+    historyParams = { 'date': sevenDays }
+    sevenDayPriceResponse = requests.get(coingeckoUrl + '/coins/' + tokenId + '/history', params=historyParams).json()
+    if 'market_data' in sevenDayPriceResponse:
+        sevenDayPrice = sevenDayPriceResponse['market_data']['current_price']['usd']
+        priceDelta = '{:.2%}'.format((currentPrice - sevenDayPrice) / sevenDayPrice)
+        return priceDelta
 
