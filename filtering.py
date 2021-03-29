@@ -1,3 +1,4 @@
+from jsonUtil import sanitizeText
 import re
 
 import logger
@@ -17,12 +18,20 @@ def filterForTokens(data):
     regex = re.compile(r'([\$\#]{1}[A-Za-z0-1]{2,})')
     filtered = []
     for entry in data:
+        entry['text'] = sanitizeText(entry['text'])
         if match := regex.findall(entry['text']):
             extractTicker(entry, match, filtered)
         elif 'retweet' in entry:
             if match := regex.findall(entry['retweet']):
                 extractTicker(entry, match, filtered)
     return filtered
+
+def sanitizeText(data):
+    print(data)
+    data = data.replace('\n', ' ')
+    data = re.sub(r'(https:\/\/t\.co\/)([A-Za-z0-9]*)', ' ', data)
+    print(data)
+    return data
 
 # Might be useful later on
 def checkForToken(entry, filtered):
