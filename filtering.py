@@ -1,6 +1,5 @@
 from jsonUtil import sanitizeText
 import re
-
 import logger
 import requests
 import json
@@ -18,8 +17,10 @@ def filterForTokens(data):
     regex = re.compile(r'([\$\#]{1}[A-Za-z0-1]{2,})')
     filtered = []
     for entry in data:
+        json.dumps(entry['text'], indent=4)
         entry['text'] = sanitizeText(entry['text'])
         if match := regex.findall(entry['text']):
+            match.extend(checkMentionsForTokens(entry))
             extractTicker(entry, match, filtered)
         elif 'retweet' in entry:
             if match := regex.findall(entry['retweet']):
@@ -27,11 +28,22 @@ def filterForTokens(data):
     return filtered
 
 def sanitizeText(data):
-    print(data)
     data = data.replace('\n', ' ')
     data = re.sub(r'(https:\/\/t\.co\/)([A-Za-z0-9]*)', ' ', data)
-    print(data)
     return data
+
+def checkMentionsForTokens(data):
+    result = list()
+    regex = re.compile(r'@(\S*)')
+    if match := regex.findall(data['text']):
+        lowerCase = list()
+        for finding in match:
+            lowerCase.append(finding.lower())
+            for coin in allCoins.json():
+                if coin['name'].lower() in lowerCase:
+                    result.append(coin['symbol'])
+    return result
+
 
 # Might be useful later on
 def checkForToken(entry, filtered):
@@ -42,15 +54,15 @@ def checkForToken(entry, filtered):
     return foundTicker
 
 def extractTicker(entry, match, filtered):
-        replacedMatches = []
-        for ticker in match:
-            rawTicker = ticker.replace('#', '').replace('$', '')
-            if rawTicker.upper() not in noise:
-                replacedMatches.append(rawTicker)
-        if len(replacedMatches) > 0:
-            noDuplicateList = list(dict.fromkeys(replacedMatches))
-            entry['token_prices'] = getTokenPrice(noDuplicateList)
-            filtered.append(entry)
+    replacedMatches = []
+    for ticker in match:
+        rawTicker = ticker.replace('#', '').replace('$', '')
+        if rawTicker.upper() not in noise:
+            replacedMatches.append(rawTicker)
+    if len(replacedMatches) > 0:
+        noDuplicateList = list(dict.fromkeys(replacedMatches))
+        entry['token_prices'] = getTokenPrice(noDuplicateList)
+        filtered.append(entry)
 
 def getTokenPrice(tokenArr):
     lowerTokenArr = []

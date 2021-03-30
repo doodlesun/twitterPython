@@ -31,7 +31,6 @@ def writeTodayTweets(bearer, usernames):
         response = timelineOneDay(bearer, getUserId(bearer, user))
         if 'data' in response:
             appendRetweets(response['data'], bearer)
-        if 'data' in response:
             filteredTweets = filtering.filterForTokens(response['data'])
             tweetsPerUser = { user: [] }
             for entry in filteredTweets:
