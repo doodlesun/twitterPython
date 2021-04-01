@@ -1,38 +1,36 @@
-from jsonUtil import sanitizeText
 import re
 import logger
 import requests
 import json
 from datetime import datetime, timedelta 
 
-coingeckoUrl = 'https://api.coingecko.com/api/v3'
-allCoins = requests.get(coingeckoUrl + '/coins/list')
-logger.printError(allCoins)
 
 f = open('noiseTickers.json')
 noise = json.load(f)
+coingeckoUrl = 'https://api.coingecko.com/api/v3'
 
 
 def filterForTokens(data):
+    allCoins = requests.get(coingeckoUrl + '/coins/list')
+    logger.printError(allCoins)
     regex = re.compile(r'([\$\#]{1}[A-Za-z0-1]{2,})')
     filtered = []
     for entry in data:
-        json.dumps(entry['text'], indent=4)
-        entry['text'] = sanitizeText(entry['text'])
+        entry['text'] = __sanitizeText(entry['text'])
         if match := regex.findall(entry['text']):
-            match.extend(checkMentionsForTokens(entry))
-            extractTicker(entry, match, filtered)
+            match.extend(__checkMentionsForTokens(entry, allCoins))
+            __extractTicker(entry, match, filtered, allCoins)
         elif 'retweet' in entry:
             if match := regex.findall(entry['retweet']):
-                extractTicker(entry, match, filtered)
+                __extractTicker(entry, match, filtered, allCoins)
     return filtered
 
-def sanitizeText(data):
+def __sanitizeText(data):
     data = data.replace('\n', ' ')
     data = re.sub(r'(https:\/\/t\.co\/)([A-Za-z0-9]*)', ' ', data)
     return data
 
-def checkMentionsForTokens(data):
+def __checkMentionsForTokens(data, allCoins):
     result = list()
     regex = re.compile(r'@(\S*)')
     if match := regex.findall(data['text']):
@@ -46,14 +44,14 @@ def checkMentionsForTokens(data):
 
 
 # Might be useful later on
-def checkForToken(entry, filtered):
+def __checkForToken(entry, filtered, allCoins):
     foundTicker = []
     for ticker in allCoins.json():
         if ticker['name'] in entry['text']:
             filtered.append(entry)
     return foundTicker
 
-def extractTicker(entry, match, filtered):
+def __extractTicker(entry, match, filtered, allCoins):
     replacedMatches = []
     for ticker in match:
         rawTicker = ticker.replace('#', '').replace('$', '')
@@ -61,10 +59,10 @@ def extractTicker(entry, match, filtered):
             replacedMatches.append(rawTicker)
     if len(replacedMatches) > 0:
         noDuplicateList = list(dict.fromkeys(replacedMatches))
-        entry['token_prices'] = getTokenPrice(noDuplicateList)
+        entry['token_prices'] = __getTokenPrice(noDuplicateList, allCoins)
         filtered.append(entry)
 
-def getTokenPrice(tokenArr):
+def __getTokenPrice(tokenArr, allCoins):
     lowerTokenArr = []
     for entryToken in tokenArr:
         lowerTokenArr.append(entryToken.lower())
@@ -83,7 +81,7 @@ def getTokenPrice(tokenArr):
         for symbol, tokenId in tokens.items():
             currentPrice = response[tokenId]['usd']
             returnValue[symbol] = {}
-            returnValue[symbol]['seven_delta'] = extractSevenDayDelta(tokenId, currentPrice)
+            returnValue[symbol]['seven_delta'] = __extractSevenDayDelta(tokenId, currentPrice)
             returnValue[symbol]['usd'] = currentPrice
             returnValue[symbol]['time'] = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
     for coin in lowerTokenArr:
@@ -92,7 +90,7 @@ def getTokenPrice(tokenArr):
             returnValue[upperCoin] = {'usd': 'no_price'}
     return returnValue;
 
-def extractSevenDayDelta(tokenId, currentPrice):
+def __extractSevenDayDelta(tokenId, currentPrice):
     sevenDays = (datetime.now() - timedelta(weeks=1)).strftime('%d-%m-%Y')
     historyParams = { 'date': sevenDays }
     sevenDayPriceResponse = requests.get(coingeckoUrl + '/coins/' + tokenId + '/history', params=historyParams).json()
